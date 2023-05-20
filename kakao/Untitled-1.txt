@@ -1,0 +1,586 @@
+//const nearAPI = require('near-api-js');
+//const nearConfig = {
+//  networkId: 'testnet',
+//  nodeUrl: 'https://rpc.testnet.near.org',
+//  walletUrl: 'https://wallet.testnet.near.org',
+//  helperUrl: 'https://helper.testnet.near.org',
+// explorerUrl: 'https://explorer.testnet.near.org',
+//};
+
+const express = require('express');
+const app = express();
+const https = require('https');
+const fs = require('fs');
+const path = require('path');
+const turl = require('turl');
+
+
+
+
+const ssl_options = {
+  ca: fs.readFileSync('/etc/letsencrypt/live/loveplant.shop/fullchain.pem'),
+  key: fs.readFileSync('/etc/letsencrypt/live/loveplant.shop/privkey.pem'),
+  cert: fs.readFileSync('/etc/letsencrypt/live/loveplant.shop/cert.pem')
+};
+
+
+app.use(express.json());
+app.use(express.urlencoded({
+  extended: true
+}))
+app.use(express.static(path.join(__dirname, 'public')));
+// app.get('/', (req, res) => res.send('linked!'));
+
+app.get("/", (req, res) => {
+  console.log('');
+  console.log('경로 : get("/")');
+  console.log('');
+  res.sendStatus(200)
+})
+//필요 변수들 
+const account_name = '계정명';
+let receive_account = 'receive_account변수받아야함.'; //송금 받을 유저계정
+let send_near; //보낼 Near 양
+let balance = '{초기화balance}'; //거래 후 잔액
+let sender = 'near.test(또는 변수)'; //보낸 계정
+
+let transferCheck = false; //'송금' 시 유저 입력 무조건 받기.
+let sendNearInputCheck = false;
+
+// kakao
+app.post("/kakao", function (req, res) {
+
+  const userRequest = req.body.userRequest;
+  const userID = userRequest.user.id;
+  //utterance : 유저가 입력한 채팅
+  let msg = userRequest.utterance;
+  console.log('==================================================');
+  console.log('경로 : post("/kakao")');
+  console.log('req.body: ', req.body);
+  console.log('userID: ', userID);
+  console.log('msg: ', msg);
+  console.log('==================================================');
+  console.log('');
+
+  //유저 입력
+  switch (msgParse(msg)) {
+    case '/시작':
+      res.send(welcomeData);
+      //1-1 계정 생성
+      //1-2 이미 존재하는 계정 ->init
+      break;
+    case 'init':
+      transferCheck = false;
+      sendNearInputCheck = false;
+      const already_account = JSON.stringify({
+        "version": "2.0",
+        "template": {
+          "outputs": [{
+            "carousel": {
+              "type": "basicCard",
+              "items": [{
+                "title": "Welcome! \n당신에게 가까운 지갑,\n Very Near 입니다.",
+                "description": "",
+                "buttons": [
+                  { "action": "message", "label": "송금", "messageText": "송금" },
+                  { "action": "message", "label": "미니 게임", "messageText": "미니 게임" },
+                  { "action": "message", "label": "FAQ", "messageText": "FAQ" }
+                ]
+              },
+              {
+                "title": "",
+                "description": "",
+                "thumbnail": {
+                  "imageUrl": "https://loveplant.shop:441/image.png"
+                },
+                "buttons": [
+                  { "action": "message", "label": "거래내역 조회", "messageText": "거래내역 조회" },
+                  { "action": "message", "label": "계정 조회", "messageText": "계정 조회" },
+                  { "action": "message", "label": "블록 검색기", "messageText": "블록 검색기" }
+                ]
+              }
+              ]
+            }
+          }
+          ]
+        }
+      })
+      res.send(already_account);
+      break;
+    case 'FAQ':
+      console.log('case FAQ')
+      res.send(FaqData);
+      break;
+    //============================================
+    case 'Very Near란?':
+      console.log('Very Near란?')
+      res.send(VeryNear);
+      break;
+    //--------------------------------------------
+    case 'what':
+      console.log('what')
+      const what = JSON.stringify({
+        "version": "2.0",
+        "template": {
+          "outputs": [{
+            "basicCard": {
+              "title": "Very Near란 무엇입니까?",
+              "description": "Very Near는 Near Protocol의 새로운 지갑 인터페이스로, 메신저 앱을 통해 Near Protocol에 쉽게 접근할 수 있도록 제공되는 서비스입니다. \n사용자들은 Very Near를 통해 간편하게 Near를 송금하고 거래내역을 조회할 수 있습니다.",
+              "thumbnail": {
+                "imageUrl": "https://loveplant.shop:441/image.png"
+              },
+              "buttons": [
+                { "action": "message", "label": "뒤로가기", "messageText": "Very Near란?" }
+              ]
+            }
+          }]
+        }
+      })
+      res.send(what);
+      break;
+    case 'how':
+      console.log('how');
+      const how = JSON.stringify({
+        "version": "2.0",
+        "template": {
+          "outputs": [{
+            "basicCard": {
+              "title": "어떻게 사용하나요?",
+              "description": "Very 챗봇의 안내에 따라 사용자는 클릭만으로 Near protocol을 사용합니다.",
+              "thumbnail": {
+                "imageUrl": "https://loveplant.shop:441/image.png"
+              },
+              "buttons": [
+                { "action": "message", "label": "뒤로가기", "messageText": "Very Near란?" }
+              ]
+            }
+          }]
+        }
+      })
+      res.send(how);
+      break;
+    case 'why':
+      console.log('why');
+      const why = JSON.stringify({
+        "version": "2.0",
+        "template": {
+          "outputs": [{
+            "basicCard": {
+              "title": "베리니어를 왜 사용해야 하나요?",
+              "description": "사용자가 더 쉽게, 빠르게 Near protocol에 접근하여 ",
+              "thumbnail": {
+                "imageUrl": "https://loveplant.shop:441/image.png"
+              },
+              "buttons": [
+                { "action": "message", "label": "뒤로가기", "messageText": "Very Near란?" }
+              ]
+            }
+          }]
+        }
+      })
+      res.send(why);
+      break;
+
+    //============================================
+    case '계정에 관하여':
+      console.log('계정에 관하여')
+      break;
+    //============================================
+    case '사용법':
+      console.log('사용법')
+      break;
+    //============================================
+    case '계정 생성':
+      res.send(createAccountData);
+      break;
+    case '송금': //사용자 입력 받아야 함.   .testnet을 입력해주세요.        
+      transferCheck = true;
+      res.send(transfer);
+      break;
+    case 'receiver 확인완료':
+      sendNearInputCheck = true;
+      res.send('{"version": "2.0", "template": {"outputs": [{"simpleText": {"text": "얼마나 보내시겠어요? 현재는 한 번에 1~200 Near까지만 보낼 수 있습니다."} },{"simpleText": {"text": "숫자만 입력하세요. (ex : 10NEAR -> 10)"} } ] } }');
+      break;
+    case 'send_near':
+      const str_send_near = JSON.stringify({
+        "version": "2.0",
+        "template": {
+          "outputs": [{
+            "basicCard":
+            {
+              "title": `${send_near} NEAR가 맞으신가요?`,
+              "description": "", "buttons": [
+                { "action": "message", "label": "네", "messageText": "send_near 확인완료" },
+                { "action": "message", "label": "아니오", "messageText": "send_near 재입력" }]
+            }
+          }]
+        }
+      })
+      res.send(str_send_near);
+      break
+    case '범위 초과':
+      res.send('{"version": "2.0", "template": {"outputs": [{"simpleText": {"text": "입력 범위가 아니거나, 문자 입력입니다."} },{"simpleText": {"text": "얼마나 보내시겠어요? 현재는 한 번에 1~200 Near까지만 보낼 수 있습니다."} },{"simpleText": {"text": "숫자만 입력하세요. (ex : 10NEAR -> 10)"} } ] } }');
+      break;
+    case 'send_near 문자입력':
+      res.send('{"version": "2.0", "template": {"outputs": [{"simpleText": {"text": "입력 범위가 아니거나, 문자 입력입니다."} },{"simpleText": {"text": "얼마나 보내시겠어요? 현재는 한 번에 1~200 Near까지만 보낼 수 있습니다."} },{"simpleText": {"text": "숫자만 입력하세요. (ex : 10NEAR -> 10)"} } ] } }');
+      break;
+    case 'send_near 확인완료':
+      //송금 로직 - 컨트랙트 코드 넣어야 함.
+      console.log("송금 로직 - 컨트랙트 코드 넣어야 함.")
+      res.send('미작성');
+      break;
+    case '계정 조회':
+      res.send('{"version": "2.0", "template": {"outputs": [{"itemCard": {"imageTitle": {"title": "계정 조회", "description": ""}, "title": "", "description": "","itemList": [{"title": "잔액", "description": "{잔액변수}"}, {"title": "계정생성시점", "description": "{계정생성시점})"},{"title": "계정생성번호", "description": "{JCpYi887z...})"},{"title": "전체거래횟수", "description": "{12회})"}], "itemListAlignment" : "right", "buttons": [{"action": "message", "label": "송금", "messageText": "송금"},{"action": "message", "label": "계정 조회", "messageText": "계정 조회"},{"action": "message", "label": "거래내역 조회", "messageText": "거래내역 조회"}], "buttonLayout" : "vertical"} } ] } }');
+      break;
+    case '거래내역 조회':
+      res.send(selectTransactionData);
+      break;
+    case '블록 검색기':
+      res.send(blockExplorerData);
+      break;
+    case '미니게임':
+      const originalUrl = `https://loveplant.shop:7777?id=${userAccountName}`;
+      turl.shorten(originalUrl).then((res) => {
+        console.log('turl.shorten res:', res);
+
+        // const minigameText = `Let's play mini game!\n\nhttps://loveplant.shop:7777?id=${chatId}`;
+        const minigameText = `Let's play mini game!\n\n${res}`;
+        res.send(originalUrl);
+        //telebot.sendMessage(chatId, minigameText, minigameOption)
+        //  .catch((error) => {
+        //    console.log("minigame sendMessage() catch() error.code:", error.code);
+        //    console.log(error.response.body);
+        //  });
+
+      }).catch((err) => {
+        console.log('turl.shorten err:', err);
+      })
+      
+      //여기
+      break;
+    case 'test': //테스트 코드      
+      const test = JSON.stringify({
+        "version": "2.0",
+        "template": {
+          "outputs": [{
+            "carousel": {
+              "type": "basicCard",
+              "items": [{
+                "title": "블록 검색기에서 식별되는 abc님의 이름은 \'nice-glitch.test'이에요.", "description": "아래 링크를 클릭하셔서 블록 검색기로 이동 후 'abc.glitch.test’를 입력해주세요.\n이해해주셔서 고마워요!\nhttps://testnet.mynearwallet.com/",
+                "buttons": [
+                  { "action": "message", "label": "송금", "messageText": "송금" },
+                  { "action": "message", "label": "미니 게임", "messageText": "미니 게임" },
+                  { "action": "message", "label": "FAQ", "messageText": "FAQ" }
+                ]
+              }, {
+                "title": "",
+                "description": "",
+                "thumbnail": {
+                  "imageUrl": "https://loveplant.shop:441/image.png"
+                },
+                "buttons": [
+                  { "action": "message", "label": "거래내역 조회", "messageText": "거래내역 조회" },
+                  { "action": "message", "label": "계정 조회", "messageText": "계정 조회" },
+                  { "action": "message", "label": "블록 검색기", "messageText": "블록 검색기" }
+                ]
+              }]
+            }
+          }
+          ]
+        }
+      })
+      res.send(test);
+      break;
+    default:
+      if (transferCheck) {
+        transferCheck = false;
+        console.log('송금받을 계정입력.')
+        const inputReceiver = JSON.stringify({
+          "version": "2.0",
+          "template": {
+            "outputs": [{
+              "basicCard": {
+                "title": `보내는 계정이 ${msg} 가 맞으신가요?`,
+                "description": "", "buttons": [
+                  { "action": "message", "label": "네", "messageText": "receiver 확인완료" },
+                  { "action": "message", "label": "아니오", "messageText": "receiver 재입력" }
+                ]
+              }
+            }]
+          }
+        });
+        res.send(inputReceiver);
+        break;
+      }
+      if (sendNearInputCheck) {
+        sendNearInputCheck = false;
+        console.log('보낼 Near 입력');
+
+        break;
+      }
+      res.send(defaultData);
+      break;
+  }
+})
+https.createServer(ssl_options, app).listen(441, () => console.log('Server Up and running at 441'));
+//================================================================================================================
+// 초기 데이터
+const welcomeData = JSON.stringify({
+  version: "2.0",
+  template: {
+    outputs: [{
+      basicCard: {
+        title: "안녕하세요? 당신에게 더 가까운 지갑, 베리니어입니다.",
+        description: "",
+        buttons: [
+          { action: "message", label: "계정 생성", messageText: "계정 생성" },
+          { action: "message", label: "FAQ", messageText: "FAQ" }
+        ]
+      }
+    }]
+  }
+})
+
+//FAQ 클릭시 출력 데이터
+const FaqData = JSON.stringify({
+  "version": "2.0",
+  "template": {
+    "outputs": [{
+      "basicCard": {
+        "title": "자주 하는 질문",
+        "description": "아래 항목을 클릭하세요.",
+        "thumbnail": {
+          "imageUrl": "https://loveplant.shop:441/image.png"
+        },
+        "buttons": [
+          { "action": "message", "label": "Very Near란?", "messageText": "Very Near란?" },
+          { "action": "message", "label": "계정에 관하여", "messageText": "계정에 관하여" },
+          { "action": "message", "label": "사용법", "messageText": "about 사용법" }
+        ]
+      }
+    }]
+  }
+})
+//
+const blockExplorerData = JSON.stringify({
+  "version": "2.0",
+  "template": {
+    "outputs": [{
+      "basicCard": {
+        "title": "블록 검색기에서 식별되는 abc님의 이름은 \'nice-glitch.test'이에요. ", "description": "아래 링크를 클릭하셔서 블록 검색기로 이동 후 'abc.glitch.test’를 입력해주세요.\n이해해주셔서 고마워요! \n https://testnet.mynearwallet.com/",
+        "buttons": [
+          { "action": "message", "label": "송금", "messageText": "송금" },
+          { "action": "message", "label": "계정 조회", "messageText": "계정 조회" },
+          { "action": "message", "label": "거래내역 조회", "messageText": "거래내역 조회" }
+        ]
+      }
+    }, {
+      "basicCard": {
+        "title": "",
+        "description": "",
+        "buttons": [
+          { "action": "message", "label": "블록 검색기", "messageText": "블록 검색기" },
+          { "action": "message", "label": "미니 게임", "messageText": "미니 게임" },
+          { "action": "message", "label": "FAQ", "messageText": "FAQ" }
+        ]
+      }
+    }]
+  }
+});
+// 거래내역 조회--------------------------------------------------------------------------------------------------------------
+const selectTransactionData = JSON.stringify({
+  "version": "2.0",
+  "template": {
+    "outputs": [{
+      "simpleText": {
+        "text": "1. aaa \n2. bbb \n3. ccc \n4. ddd \n5. eee \n6. fff \n7 ggg \n8 ggg \n9 ggg \n10 ggg \n11 ggg \n12 ggg \n13 ggg \n14. aaa \n15. bbb \n16. ccc \n17. ddd \n18. eee \n19. fff \n20 ggg \n1. aaa \n2. bbb \n3. ccc \n4. ddd \n5. eee \n6. fff \n7 ggg \n8 ggg \n9 ggg \n10 ggg \n11 ggg \n12 ggg \n13 ggg \n14. aaa \n15. bbb \n16. ccc \n17. ddd \n18. eee \n19. fff \n20. ads 1. aaa \n2. bbb \n3. ccc \n4. ddd \n5. eee \n6. fff \n7 ggg \n8 ggg \n9 ggg \n10 ggg \n11 ggg \n12 ggg \n13 ggg \n14. aaa \n15. bbb \n16. ccc \n17. ddd \n18. eee \n19. fff \n20. asd"
+      }
+    }, {
+      "basicCard": {
+        "title": "", "description": "",
+        "buttons": [
+          { "action": "message", "label": "송금", "messageText": "송금" },
+          { "action": "message", "label": "계정 조회", "messageText": "계정 조회" },
+          { "action": "message", "label": "거래내역 조회", "messageText": "거래내역 조회" }
+        ]
+      }
+    }, {
+      "basicCard": {
+        "title": "",
+        "description": "",
+        "buttons": [
+          { "action": "message", "label": "블록 검색기", "messageText": "블록 검색기" },
+          { "action": "message", "label": "미니 게임", "messageText": "미니 게임" },
+          { "action": "message", "label": "FAQ", "messageText": "FAQ" }
+        ]
+      }
+    }]
+  }
+});
+const defaultData = JSON.stringify({
+  "version": "2.0",
+  "template": {
+    "outputs": [
+      {
+        "basicCard": {
+          "title": "해당 입력을 읽지 못합니다.", "description": "",
+          "buttons": [
+            { "action": "message", "label": "처음으로", "messageText": "init" }
+          ]
+        }
+      }
+    ]
+  }
+});
+const createAccountData = JSON.stringify({
+  "version": "2.0",
+  "template": {
+    "outputs": [{
+      "carousel": {
+        "type": "basicCard",
+        "items": [{
+          "title": `계정 생성 완료 \n계정이 성공적으로 생성되었어요.`,
+          "description": `잔액 : ${account_name}\n송금자 : ${receive_account}`,
+          "buttons": [
+            { "action": "message", "label": "송금", "messageText": "송금" },
+            { "action": "message", "label": "미니 게임", "messageText": "미니 게임" },
+            { "action": "message", "label": "FAQ", "messageText": "FAQ" }
+          ]
+        },
+        {
+          "title": "",
+          "description": "",
+          "thumbnail": {
+            "imageUrl": "https://loveplant.shop:441/image.png"
+          },
+          "buttons": [
+            { "action": "message", "label": "거래내역 조회", "messageText": "거래내역 조회" },
+            { "action": "message", "label": "계정 조회", "messageText": "계정 조회" },
+            { "action": "message", "label": "블록 검색기", "messageText": "블록 검색기" }
+          ]
+        }
+        ]
+      }
+    }
+    ]
+  }
+})
+const transfer = JSON.stringify({
+  "version": "2.0",
+  "template": {
+    "outputs": [{
+      "basicCard": {
+        "title": "송금받을 수신인의 계정을 입력하세요",
+        //"description": "ex : glitch.testnet"
+        "description": "",
+        "buttons": [
+          { "action": "message", "label": "처음으로", "messageText": "init" },
+        ]
+      }
+    }]
+  }
+})
+const VeryNear = JSON.stringify({
+  "version": "2.0",
+  "template": {
+    "outputs": [{
+      "basicCard": {
+        "title": "Very Near란?",
+        "description": "아래 항목을 클릭하세요",
+        "thumbnail": {
+          "imageUrl": "https://loveplant.shop:441/image.png"
+        },
+        "buttons": [
+          { "action": "message", "label": "베리니어는 무엇인가요?", "messageText": "what" },
+          { "action": "message", "label": "어떻게 사용하나요?", "messageText": "how" },
+          { "action": "message", "label": "왜 베리니어인가요?", "messageText": "why" }
+        ]
+      }
+    }]
+  }
+});
+"123"
+//==================================================================================================
+function msgParse(msg) {
+  console.log('transferCheck:', transferCheck)
+  console.log('sendNearInputCheck:', sendNearInputCheck)
+  console.log("처음 들어온 msg:", msg);
+  if (msg == 'init') {
+    return msg;
+  }
+  if (msg == 'send_near 확인완료') {
+    return msg;
+  }
+  // 수신인 입력 - 아니오 선택시 다시 송금클릭했을 때와 동일한 case 를 타기 위한 if문
+  if (msg == 'receiver 재입력') {
+    msg = '송금';
+  }
+  if (sendNearInputCheck) {
+    console.log('보낼 니어 입력');
+    console.log('isInRange(msg):', isInRange(msg));
+
+    if (msg == 'send_near 재입력') {
+      console.log("msg == 'send_near 재입력' // true")
+      msg = 'receiver 확인완료';
+    }
+    if (isInRange(msg)) {
+      console.log('msg=숫자, 니어 입력')
+      send_near = Number(msg);
+      msg = 'send_near';
+    } else {
+      //재입력 - 숫자 입력 해야 하는데 문자 입력함.
+      console.log('재입력 - 숫자 입력 해야 하는데 문자 입력함.')
+      msg = 'send_near 문자입력';
+    }
+
+    if (Number.isInteger(msg)) {
+      if (Number(msg) > 0 && Number(msg) < 201) {
+        send_near = Number(msg);
+        msg = 'send_near';
+        console.log(msg, ":", send_near);
+      } else {
+        // 재입력 메시지
+        msg = '범위 초과';
+        console.log('범위 초과-재입력 메시지');
+      }
+    }
+  }
+
+  console.log('msgParse:', msg);
+  return msg;
+}
+
+// ㅎㅇ 준영
+
+const nearAPI = require("near-api-js");
+const nearConfig = {
+  networkId: "testnet", // 네트워크 ID (mainnet, testnet, betanet 등)
+  nodeUrl: "https://rpc.testnet.near.org", // NEAR 노드의 URL
+  walletUrl: "https://wallet.testnet.near.org", // NEAR 지갑의 URL
+  helperUrl: "https://helper.testnet.near.org", // NEAR 헬퍼의 URL
+  explorerUrl: 'https://explorer.testnet.near.org',
+};
+
+function isNumber(input) {
+  return typeof input === 'number';
+}
+
+// 송금할 금액이 1~200 사이이고 정수인지 판단하는 메서드
+function isInRange(number) {
+  // Check if the number is an integer
+  const number1 = Number(number);
+  console.log(typeof number1);
+  if (Number.isInteger(number1)) {
+    console.log('integer yes');
+    // Check if the number is within the range of 1 to 200
+    if (number1 >= 1 && number1 <= 200) {
+      console.log('between 1~200 no');
+      return true; // Number is in the desired range
+    } else {
+      console.log('between 1~200 yes');
+    }
+  } else {
+    console.log('integer no');
+  }
+  return false; // Number is outside the desired range or not an integer
+}
