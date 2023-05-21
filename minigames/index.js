@@ -25,7 +25,7 @@ app.use(
 );
 // 리액트 빌드 파일이 있는 디렉토리를 express.static으로 제공합니다.
 // app.use(express.static('/usr/local/games/dist'));
-app.use(express.static('/usr/local/games/crossword-tutorial-chapter-2/dist'));
+app.use(express.static('/usr/local/minigames/crossword/dist'));
 
 //// chatGPT : 한국어해결
 //app.use(function(req, res, next) {
